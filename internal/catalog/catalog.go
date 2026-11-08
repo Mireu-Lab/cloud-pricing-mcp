@@ -12,10 +12,10 @@ import (
 const DefaultUSDToKRW = 1350.0
 
 type CatalogData struct {
-	UpdatedAt          string              `json:"updated_at"`
-	Version            string              `json:"version"`
-	CurrencyExchange   map[string]float64  `json:"currency_exchange"`
-	Products           []models.PriceItem  `json:"products"`
+	UpdatedAt        string             `json:"updated_at"`
+	Version          string             `json:"version"`
+	CurrencyExchange map[string]float64 `json:"currency_exchange"`
+	Products         []models.PriceItem `json:"products"`
 }
 
 var (
@@ -27,7 +27,7 @@ func initCatalog() {
 	// Initialize default high-accuracy embedded pricing catalog
 	data = CatalogData{
 		UpdatedAt: "2026-11-08T00:00:00Z",
-		Version:   "1.0.0-multi-cloud",
+		Version:   "1.1.0-multi-cloud-expanded",
 		CurrencyExchange: map[string]float64{
 			"USD_TO_KRW": DefaultUSDToKRW,
 		},
@@ -73,46 +73,73 @@ func getDefaultCatalogProducts() []models.PriceItem {
 	return []models.PriceItem{
 		// ==================== NAVER CLOUD PLATFORM (NCP) ====================
 		{
+			ID:                  "ncp-svr-micro",
+			Provider:            models.ProviderNCP,
+			Category:            "Compute",
+			MainProduct:         "Server (VPC)",
+			SubService:          "Micro (1vCPU, 1GB)",
+			ServiceType:         "IaaS (Trial Server)",
+			Description:         "NCP Micro trial server (1 vCPU, 1 GB RAM)",
+			PricingUnit:         "KRW/hour",
+			PricingModel:        "Pay-as-you-go / Free 1yr",
+			Currency:            models.CurrencyKRW,
+			BaseRate:            0.0,
+			FreeTierAllowance:   "1 free Micro server for 1st year of account",
+			CostOptimizationTip: "Best for simple hobby, proxy, or lightweight dev test",
+		},
+		{
 			ID:                  "ncp-svr-s2-g2",
 			Provider:            models.ProviderNCP,
 			Category:            "Compute",
 			MainProduct:         "Server (VPC)",
-			SubService:          "Standard s2-g2 (2vCPU, 4GB)",
+			SubService:          "Standard s2-g2 (2vCPU, 8GB)",
 			ServiceType:         "IaaS (Virtual Server)",
-			Description:         "NCP VPC Standard Generation 2: 2 vCPU, 4 GB Memory",
+			Description:         "NCP VPC Standard Generation 2: 2 vCPU, 8 GB Memory (s2-g2)",
 			PricingUnit:         "KRW/hour",
 			PricingModel:        "Pay-as-you-go",
 			Currency:            models.CurrencyKRW,
-			BaseRate:            92.0, // ~67,160 KRW/month (730h)
-			FreeTierAllowance:   "Micro tier available for 1 year trial",
-			CostOptimizationTip: "Use 1-year or 2-year contract for up to 20% discount",
+			BaseRate:            119.0, // ~86,870 KRW/month (730h)
+			CostOptimizationTip: "Stop instance when not running; computing cost is waived",
 		},
 		{
 			ID:                  "ncp-svr-s4-g2",
 			Provider:            models.ProviderNCP,
 			Category:            "Compute",
 			MainProduct:         "Server (VPC)",
-			SubService:          "Standard s4-g2 (4vCPU, 8GB)",
+			SubService:          "Standard s4-g2 (4vCPU, 16GB)",
 			ServiceType:         "IaaS (Virtual Server)",
-			Description:         "NCP VPC Standard Generation 2: 4 vCPU, 8 GB Memory",
+			Description:         "NCP VPC Standard Generation 2: 4 vCPU, 16 GB Memory (s4-g2)",
 			PricingUnit:         "KRW/hour",
 			PricingModel:        "Pay-as-you-go",
 			Currency:            models.CurrencyKRW,
-			BaseRate:            184.0, // ~134,320 KRW/month (730h)
-			CostOptimizationTip: "Stop instances when not in use (storage only charged)",
+			BaseRate:            241.0, // ~175,930 KRW/month (730h)
+			CostOptimizationTip: "1-year contract gives 10% discount, 2-year gives 20%",
+		},
+		{
+			ID:                  "ncp-svr-s8-g2",
+			Provider:            models.ProviderNCP,
+			Category:            "Compute",
+			MainProduct:         "Server (VPC)",
+			SubService:          "Standard s8-g2 (8vCPU, 32GB)",
+			ServiceType:         "IaaS (Virtual Server)",
+			Description:         "NCP VPC Standard Generation 2: 8 vCPU, 32 GB Memory (s8-g2)",
+			PricingUnit:         "KRW/hour",
+			PricingModel:        "Pay-as-you-go",
+			Currency:            models.CurrencyKRW,
+			BaseRate:            485.0, // ~354,050 KRW/month (730h)
 		},
 		{
 			ID:                  "ncp-svr-c4-g2",
 			Provider:            models.ProviderNCP,
 			Category:            "Compute",
 			MainProduct:         "Server (VPC)",
-			SubService:          "High CPU c4-g2 (4vCPU, 4GB)",
+			SubService:          "High CPU c4-g2 (4vCPU, 8GB)",
 			ServiceType:         "IaaS (Virtual Server)",
-			Description:         "NCP VPC High CPU Generation 2: 4 vCPU, 4 GB Memory",
+			Description:         "NCP VPC High CPU Generation 2: 4 vCPU, 8 GB Memory",
 			PricingUnit:         "KRW/hour",
 			PricingModel:        "Pay-as-you-go",
 			Currency:            models.CurrencyKRW,
-			BaseRate:            152.0,
+			BaseRate:            198.0,
 			CostOptimizationTip: "Ideal for CPU intensive batch processing",
 		},
 		{
@@ -120,14 +147,54 @@ func getDefaultCatalogProducts() []models.PriceItem {
 			Provider:            models.ProviderNCP,
 			Category:            "Compute",
 			MainProduct:         "Server (VPC)",
-			SubService:          "High Memory m4-g2 (4vCPU, 16GB)",
+			SubService:          "High Memory m4-g2 (4vCPU, 32GB)",
 			ServiceType:         "IaaS (Virtual Server)",
-			Description:         "NCP VPC High Memory Generation 2: 4 vCPU, 16 GB Memory",
+			Description:         "NCP VPC High Memory Generation 2: 4 vCPU, 32 GB Memory",
 			PricingUnit:         "KRW/hour",
 			PricingModel:        "Pay-as-you-go",
 			Currency:            models.CurrencyKRW,
-			BaseRate:            248.0,
+			BaseRate:            330.0,
 			CostOptimizationTip: "Recommended for In-Memory DB (Redis) or caching",
+		},
+		{
+			ID:                  "ncp-gpu-t4",
+			Provider:            models.ProviderNCP,
+			Category:            "Compute",
+			MainProduct:         "GPU Server",
+			SubService:          "NVIDIA Tesla T4 (8vCPU, 32GB, 1x T4 16GB)",
+			ServiceType:         "AI / Accelerated Compute",
+			Description:         "Cost-effective GPU server for inference and light DL training",
+			PricingUnit:         "KRW/hour",
+			PricingModel:        "Pay-as-you-go",
+			Currency:            models.CurrencyKRW,
+			BaseRate:            650.0, // ~474,500 KRW/month
+			CostOptimizationTip: "Terminate server immediately after inference/training batches",
+		},
+		{
+			ID:                  "ncp-gpu-v100",
+			Provider:            models.ProviderNCP,
+			Category:            "Compute",
+			MainProduct:         "GPU Server",
+			SubService:          "NVIDIA Tesla V100 (8vCPU, 64GB, 1x V100 32GB)",
+			ServiceType:         "AI / Accelerated Compute",
+			Description:         "High performance DL training GPU server (Southern Region)",
+			PricingUnit:         "KRW/hour",
+			PricingModel:        "Pay-as-you-go",
+			Currency:            models.CurrencyKRW,
+			BaseRate:            1850.0,
+		},
+		{
+			ID:                  "ncp-gpu-a100",
+			Provider:            models.ProviderNCP,
+			Category:            "Compute",
+			MainProduct:         "GPU Server",
+			SubService:          "NVIDIA A100 (16vCPU, 128GB, 1x A100 80GB)",
+			ServiceType:         "LLM / Supercomputing Compute",
+			Description:         "Enterprise LLM training and high-throughput AI computing",
+			PricingUnit:         "KRW/hour",
+			PricingModel:        "Pay-as-you-go",
+			Currency:            models.CurrencyKRW,
+			BaseRate:            3800.0,
 		},
 		{
 			ID:                  "ncp-storage-block-ssd",
@@ -389,6 +456,20 @@ func getDefaultCatalogProducts() []models.PriceItem {
 			CostOptimizationTip: "Spot instance discount ~65% ($0.08/hr)",
 		},
 		{
+			ID:                  "aws-ec2-g4dn-xlarge",
+			Provider:            models.ProviderAWS,
+			Category:            "Compute",
+			MainProduct:         "Amazon EC2",
+			SubService:          "g4dn.xlarge (4vCPU, 16GB, 1x T4 16GB)",
+			ServiceType:         "GPU Accelerated Compute",
+			Description:         "NVIDIA T4 GPU accelerated instance (Seoul)",
+			PricingUnit:         "USD/hour",
+			PricingModel:        "On-Demand",
+			Currency:            models.CurrencyUSD,
+			BaseRate:            0.710,
+			CostOptimizationTip: "Spot discount saves ~70% ($0.21/hr)",
+		},
+		{
 			ID:                  "aws-s3-standard",
 			Provider:            models.ProviderAWS,
 			Category:            "Storage",
@@ -474,6 +555,19 @@ func getDefaultCatalogProducts() []models.PriceItem {
 			Currency:            models.CurrencyUSD,
 			BaseRate:            0.216,
 			CostOptimizationTip: "Azure Spot instances save up to 80-90%",
+		},
+		{
+			ID:                  "azure-vm-nc4as-t4-v3",
+			Provider:            models.ProviderAzure,
+			Category:            "Compute",
+			MainProduct:         "Virtual Machines",
+			SubService:          "Standard_NC4as_T4_v3 (4vCPU, 28GB, 1x T4 16GB)",
+			ServiceType:         "GPU Accelerated VM",
+			Description:         "NVIDIA Tesla T4 GPU VM for AI inference and graphics",
+			PricingUnit:         "USD/hour",
+			PricingModel:        "Pay-as-you-go",
+			Currency:            models.CurrencyUSD,
+			BaseRate:            0.628,
 		},
 		{
 			ID:                  "azure-blob-hot",
@@ -575,6 +669,20 @@ func getDefaultCatalogProducts() []models.PriceItem {
 			Currency:            models.CurrencyUSD,
 			BaseRate:            0.1608,
 			CostOptimizationTip: "CUD 1-year saves 37%, 3-year saves 55%",
+		},
+		{
+			ID:                  "gcp-ce-g2-standard-4",
+			Provider:            models.ProviderGCP,
+			Category:            "Compute",
+			MainProduct:         "Compute Engine",
+			SubService:          "g2-standard-4 (4vCPU, 16GB, 1x NVIDIA L4 24GB)",
+			ServiceType:         "GPU Accelerated Compute",
+			Description:         "Next-generation NVIDIA L4 GPU instance for AI inference and graphics",
+			PricingUnit:         "USD/hour",
+			PricingModel:        "Pay-as-you-go",
+			Currency:            models.CurrencyUSD,
+			BaseRate:            0.758,
+			CostOptimizationTip: "Spot saves ~65% ($0.26/hr)",
 		},
 		{
 			ID:                  "gcp-gcs-standard",
