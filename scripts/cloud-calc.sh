@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# cloud-calc.sh: Multi-Cloud Pricing Calculator Universal CLI
+# cloud-calc.sh: Big 3 Cloud Pricing Calculator Universal CLI (AWS, Azure, GCP)
 # Adheres strictly to Limmireu Global Rule (set -euo pipefail & clear logging)
 # ==============================================================================
 set -euo pipefail
@@ -10,7 +10,9 @@ BIN_PATH="${SCRIPT_DIR}/../bin/cloud-pricing-mcp"
 
 # Fallback to system local bin if not in project bin
 if [[ ! -x "${BIN_PATH}" ]]; then
-    if [[ -x "${HOME}/.local/bin/cloud-pricing-mcp" ]]; then
+    if [[ -x "${HOME}/.gemini/antigravity-cli/bin/cloud-pricing-mcp" ]]; then
+        BIN_PATH="${HOME}/.gemini/antigravity-cli/bin/cloud-pricing-mcp"
+    elif [[ -x "${HOME}/.local/bin/cloud-pricing-mcp" ]]; then
         BIN_PATH="${HOME}/.local/bin/cloud-pricing-mcp"
     else
         echo "[ERROR] cloud-pricing-mcp binary not found! Please build it first." >&2
@@ -22,10 +24,6 @@ log_info() {
     echo -e "\033[1;34m[INFO]\033[0m $*"
 }
 
-log_success() {
-    echo -e "\033[1;32m[SUCCESS]\033[0m $*"
-}
-
 log_error() {
     echo -e "\033[1;31m[ERROR]\033[0m $*" >&2
 }
@@ -33,38 +31,35 @@ log_error() {
 print_usage() {
     cat << 'EOF'
 ================================================================================
-  Multi-Cloud Pricing Calculator CLI (Shell-First Wrapper)
-  Providers: NCP (Naver Cloud), Cloudflare, AWS, Azure, GCP
+  Big 3 Cloud Pricing Calculator CLI (AWS, Azure, GCP)
 ================================================================================
 Usage:
   ./cloud-calc.sh [command] [options]
 
 Commands:
-  compare       Cross-cloud cost comparison (NCP vs AWS vs Azure vs GCP)
-  ncp           Calculate Naver Cloud Platform cost
-  cloudflare    Calculate Cloudflare Workers & R2 cost
+  compare       Cross-cloud cost comparison (AWS vs Azure vs GCP)
   aws           Calculate AWS EC2, EBS & Egress cost
   azure         Calculate Azure VM, Disk & Egress cost
   gcp           Calculate Google Cloud Compute Engine & Storage cost
-  catalog       View full pricing catalog or filter by provider
-  quick-quote   Interactive wizard for instant cost recommendation
+  catalog       View full pricing catalog or filter by provider (aws, azure, gcp)
+  quick-quote   Interactive wizard for instant Big 3 cost recommendation
   help          Show this help message
 
 Quick Examples:
-  # 1. Compare 4 clouds for 2 vCPU, 4GB RAM, 50GB SSD, 100GB Outbound
+  # 1. Compare Big 3 for 2 vCPU, 4GB RAM, 50GB SSD, 100GB Outbound
   ./cloud-calc.sh compare --vcpu 2 --ram 4 --storage 50 --egress 100
 
-  # 2. NCP Server Standard s2-g2 with 100GB SSD
-  ./cloud-calc.sh ncp --server s2-g2 --storage 100 --type ssd
-
-  # 3. Cloudflare 25M Workers requests + 1TB R2 Storage
-  ./cloud-calc.sh cloudflare --workers-reqs 25 --r2-storage 1000
-
-  # 4. AWS EC2 Graviton2 Spot instance
+  # 2. AWS EC2 Graviton2 Spot instance
   ./cloud-calc.sh aws --instance t4g.medium --ebs 100 --spot
 
-  # 5. Show only NCP catalog products
-  ./cloud-calc.sh catalog --provider ncp
+  # 3. Azure Standard_B2s VM
+  ./cloud-calc.sh azure --vm Standard_B2s --disk 100
+
+  # 4. GCP e2-standard-2 instance
+  ./cloud-calc.sh gcp --machine e2-standard-2 --disk 100
+
+  # 5. Show GCP catalog products
+  ./cloud-calc.sh catalog --provider gcp
 ================================================================================
 EOF
 }
@@ -95,56 +90,12 @@ case "${cmd}" in
             esac
         done
 
-        log_info "Calculating cross-cloud comparison for: ${VCPU} vCPU, ${RAM}GB RAM, ${STORAGE}GB ${STORAGE_TYPE^^}, ${EGRESS}GB Egress (Spot: ${SPOT})..."
+        log_info "Calculating Big 3 comparison: ${VCPU} vCPU, ${RAM}GB RAM, ${STORAGE}GB ${STORAGE_TYPE^^}, ${EGRESS}GB Egress (Spot: ${SPOT})..."
         if [[ "${SPOT}" == "true" ]]; then
             "${BIN_PATH}" compare -vcpu "${VCPU}" -ram "${RAM}" -storage "${STORAGE}" -storage-type "${STORAGE_TYPE}" -hours "${HOURS}" -egress "${EGRESS}" -spot
         else
             "${BIN_PATH}" compare -vcpu "${VCPU}" -ram "${RAM}" -storage "${STORAGE}" -storage-type "${STORAGE_TYPE}" -hours "${HOURS}" -egress "${EGRESS}"
         fi
-        ;;
-
-    ncp)
-        SERVER="s2-g2"
-        COUNT=1
-        HOURS=730
-        STORAGE=50
-        STORAGE_TYPE="ssd"
-        EGRESS=0
-
-        while [[ $# -gt 0 ]]; do
-            case "$1" in
-                --server) SERVER="$2"; shift 2 ;;
-                --count) COUNT="$2"; shift 2 ;;
-                --hours) HOURS="$2"; shift 2 ;;
-                --storage) STORAGE="$2"; shift 2 ;;
-                --type|--storage-type) STORAGE_TYPE="$2"; shift 2 ;;
-                --egress) EGRESS="$2"; shift 2 ;;
-                *) log_error "Unknown option: $1"; exit 1 ;;
-            esac
-        done
-
-        log_info "Calculating NCP Cost for ${SERVER} (Count: ${COUNT}, Storage: ${STORAGE}GB ${STORAGE_TYPE})..."
-        "${BIN_PATH}" ncp -server "${SERVER}" -count "${COUNT}" -hours "${HOURS}" -storage "${STORAGE}" -storage-type "${STORAGE_TYPE}" -egress "${EGRESS}"
-        ;;
-
-    cloudflare|cf)
-        WORKERS_M=0
-        R2_GB=0
-        OPS_A_M=0
-        OPS_B_M=0
-
-        while [[ $# -gt 0 ]]; do
-            case "$1" in
-                --workers-reqs|--workers-m) WORKERS_M="$2"; shift 2 ;;
-                --r2-storage|--r2-gb) R2_GB="$2"; shift 2 ;;
-                --ops-a) OPS_A_M="$2"; shift 2 ;;
-                --ops-b) OPS_B_M="$2"; shift 2 ;;
-                *) log_error "Unknown option: $1"; exit 1 ;;
-            esac
-        done
-
-        log_info "Calculating Cloudflare Cost (Workers: ${WORKERS_M}M, R2: ${R2_GB}GB)..."
-        "${BIN_PATH}" cloudflare -workers-reqs-m "${WORKERS_M}" -r2-storage-gb "${R2_GB}" -r2-ops-a-m "${OPS_A_M}" -r2-ops-b-m "${OPS_B_M}"
         ;;
 
     aws)
@@ -249,7 +200,7 @@ case "${cmd}" in
 
     quick-quote)
         echo "=========================================================="
-        echo "  ⚡ Multi-Cloud Quick Quote Wizard"
+        echo "  ⚡ Big 3 Cloud Quick Quote Wizard (AWS vs Azure vs GCP)"
         echo "=========================================================="
         read -r -p "Enter CPU count (default 2): " q_cpu
         q_cpu="${q_cpu:-2}"
@@ -266,7 +217,7 @@ case "${cmd}" in
             spot_flag="-spot"
         fi
 
-        log_info "Running multi-cloud calculation..."
+        log_info "Running Big 3 calculation..."
         "${BIN_PATH}" compare -vcpu "${q_cpu}" -ram "${q_ram}" -storage "${q_storage}" -egress "${q_egress}" ${spot_flag}
         ;;
 

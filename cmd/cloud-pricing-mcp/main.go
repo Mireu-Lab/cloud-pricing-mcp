@@ -27,12 +27,6 @@ func main() {
 	case "compare":
 		runCompare(os.Args[2:])
 
-	case "ncp":
-		runNCP(os.Args[2:])
-
-	case "cloudflare", "cf":
-		runCloudflare(os.Args[2:])
-
 	case "aws":
 		runAWS(os.Args[2:])
 
@@ -74,7 +68,7 @@ func runCompare(args []string) {
 	spot := fs.Bool("spot", false, "Use Spot/Preemptible pricing")
 	fs.Parse(args)
 
-	res, err := calculator.CompareAllClouds(models.CompareRequest{
+	res, err := calculator.CompareBig3(models.CompareRequest{
 		VCPU:          *vcpu,
 		MemoryGB:      *ram,
 		StorageGB:     *storage,
@@ -90,43 +84,9 @@ func runCompare(args []string) {
 	printJSON(res)
 }
 
-func runNCP(args []string) {
-	fs := flag.NewFlagSet("ncp", flag.ExitOnError)
-	server := fs.String("server", "s2-g2", "s2-g2, s4-g2, c4-g2, m4-g2")
-	count := fs.Int("count", 1, "Instance count")
-	hours := fs.Float64("hours", 730, "Running hours")
-	storage := fs.Float64("storage", 50, "Block storage GB")
-	storageType := fs.String("storage-type", "ssd", "ssd or hdd")
-	egress := fs.Float64("egress", 0, "Outbound GB")
-	fs.Parse(args)
-
-	res, err := calculator.CalculateNCP(*server, *count, *hours, *storage, *storageType, *egress)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "NCP calculation error: %v\n", err)
-		os.Exit(1)
-	}
-	printJSON(res)
-}
-
-func runCloudflare(args []string) {
-	fs := flag.NewFlagSet("cloudflare", flag.ExitOnError)
-	reqs := fs.Float64("workers-reqs-m", 0, "Workers requests in millions")
-	storage := fs.Float64("r2-storage-gb", 0, "R2 stored GB")
-	opsA := fs.Float64("r2-ops-a-m", 0, "R2 Class A operations in millions")
-	opsB := fs.Float64("r2-ops-b-m", 0, "R2 Class B operations in millions")
-	fs.Parse(args)
-
-	res, err := calculator.CalculateCloudflare(*reqs, *storage, *opsA, *opsB)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Cloudflare calculation error: %v\n", err)
-		os.Exit(1)
-	}
-	printJSON(res)
-}
-
 func runAWS(args []string) {
 	fs := flag.NewFlagSet("aws", flag.ExitOnError)
-	inst := fs.String("instance", "t4g.medium", "t4g.small, t4g.medium, t3.medium, m6i.xlarge")
+	inst := fs.String("instance", "t4g.medium", "t4g.small, t4g.medium, t3.medium, m6i.xlarge, g4dn.xlarge")
 	count := fs.Int("count", 1, "Instance count")
 	hours := fs.Float64("hours", 730, "Running hours")
 	ebs := fs.Float64("ebs", 50, "EBS gp3 GB")
@@ -144,7 +104,7 @@ func runAWS(args []string) {
 
 func runAzure(args []string) {
 	fs := flag.NewFlagSet("azure", flag.ExitOnError)
-	vm := fs.String("vm", "Standard_B2s", "Standard_B2s, Standard_D4s_v5")
+	vm := fs.String("vm", "Standard_B2s", "Standard_B2s, Standard_D4s_v5, Standard_NC4as_T4_v3")
 	count := fs.Int("count", 1, "Instance count")
 	hours := fs.Float64("hours", 730, "Running hours")
 	disk := fs.Float64("disk", 50, "Managed disk GB")
@@ -162,7 +122,7 @@ func runAzure(args []string) {
 
 func runGCP(args []string) {
 	fs := flag.NewFlagSet("gcp", flag.ExitOnError)
-	machine := fs.String("machine", "e2-standard-2", "e2-micro, e2-standard-2, e2-standard-4")
+	machine := fs.String("machine", "e2-standard-2", "e2-micro, e2-standard-2, e2-standard-4, g2-standard-4")
 	count := fs.Int("count", 1, "Instance count")
 	hours := fs.Float64("hours", 730, "Running hours")
 	disk := fs.Float64("disk", 50, "pd-balanced disk GB")
@@ -180,7 +140,7 @@ func runGCP(args []string) {
 
 func runCatalog(args []string) {
 	fs := flag.NewFlagSet("catalog", flag.ExitOnError)
-	prov := fs.String("provider", "", "ncp, cloudflare, aws, azure, gcp")
+	prov := fs.String("provider", "", "aws, azure, gcp")
 	fs.Parse(args)
 
 	if *prov != "" {
@@ -200,17 +160,15 @@ func printJSON(v interface{}) {
 }
 
 func printHelp() {
-	helpText := `Multi-Cloud Pricing Calculator MCP & CLI (Mireu-Lab)
-Supported Providers: NCP (Naver Cloud), Cloudflare, AWS, Azure, GCP
+	helpText := `Big 3 Cloud Pricing Calculator MCP & CLI (Mireu-Lab)
+Supported Providers: AWS, Azure, GCP
 
 Usage:
   cloud-pricing-mcp [command] [flags]
 
 Commands:
   server              Run as Stdio MCP server (Default)
-  compare             Compare costs across all cloud providers (NCP, AWS, Azure, GCP)
-  ncp                 Calculate Naver Cloud Platform costs (Server, Storage, Bandwidth)
-  cloudflare (cf)     Calculate Cloudflare Workers & R2 Object Storage costs
+  compare             Compare costs across Big 3 cloud providers (AWS, Azure, GCP)
   aws                 Calculate AWS EC2, EBS, and Data Transfer costs
   azure               Calculate Azure VM, Disk, and Bandwidth costs
   gcp                 Calculate Google Cloud Compute Engine & Storage costs
@@ -218,12 +176,10 @@ Commands:
 
 Examples:
   cloud-pricing-mcp compare -vcpu 2 -ram 4 -storage 50 -egress 100
-  cloud-pricing-mcp ncp -server s2-g2 -storage 100 -storage-type ssd
-  cloud-pricing-mcp cloudflare -workers-reqs-m 25 -r2-storage-gb 1000
   cloud-pricing-mcp aws -instance t4g.medium -ebs 100 -spot
   cloud-pricing-mcp azure -vm Standard_B2s -disk 100
   cloud-pricing-mcp gcp -machine e2-standard-2 -disk 100 -spot
-  cloud-pricing-mcp catalog -provider ncp
+  cloud-pricing-mcp catalog -provider gcp
 `
 	fmt.Println(helpText)
 }

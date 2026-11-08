@@ -50,7 +50,6 @@ func NewServer(r io.Reader, w io.Writer) *Server {
 
 func (s *Server) Run() error {
 	scanner := bufio.NewScanner(s.reader)
-	// Allow large tokens (up to 10MB)
 	buf := make([]byte, 0, 64*1024)
 	scanner.Buffer(buf, 10*1024*1024)
 
@@ -104,12 +103,11 @@ func (s *Server) handleRequest(req *Request) {
 			},
 			"serverInfo": map[string]interface{}{
 				"name":    "cloud-pricing-mcp",
-				"version": "1.0.0",
+				"version": "2.0.0",
 			},
 		})
 
 	case "notifications/initialized":
-		// No response needed for notification
 		return
 
 	case "tools/list":
@@ -154,7 +152,7 @@ func getToolDefinitions() []Tool {
 	return []Tool{
 		{
 			Name:        "compare_cloud_costs",
-			Description: "Universal FinOps multi-cloud comparison tool (NCP, AWS, Azure, GCP) to find the most cost-effective provider for a given VM & storage spec.",
+			Description: "Universal FinOps Big 3 comparison tool (AWS, Azure, GCP) to find the most cost-effective provider for a given VM & storage spec.",
 			InputSchema: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -169,40 +167,12 @@ func getToolDefinitions() []Tool {
 			},
 		},
 		{
-			Name:        "calculate_ncp",
-			Description: "Calculate costs for NAVER CLOUD PLATFORM (Server VPC, Block Storage SSD/HDD, Outbound Internet Bandwidth) in KRW.",
-			InputSchema: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"server_type":  map[string]interface{}{"type": "string", "default": "s2-g2", "description": "s2-g2 (2vCPU,4GB), s4-g2 (4vCPU,8GB), c4-g2 (High CPU), m4-g2 (High Memory)"},
-					"count":        map[string]interface{}{"type": "number", "default": 1, "description": "Number of server instances"},
-					"hours":        map[string]interface{}{"type": "number", "default": 730, "description": "Hours per month"},
-					"storage_gb":   map[string]interface{}{"type": "number", "default": 50, "description": "Block storage size in GB"},
-					"storage_type": map[string]interface{}{"type": "string", "default": "ssd", "description": "ssd or hdd"},
-					"outbound_gb":  map[string]interface{}{"type": "number", "default": 0, "description": "Outbound Internet egress in GB (1TB free allowance included)"},
-				},
-			},
-		},
-		{
-			Name:        "calculate_cloudflare",
-			Description: "Calculate costs for Cloudflare Workers (Edge Serverless) and Cloudflare R2 Object Storage (Zero Egress).",
-			InputSchema: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"workers_reqs_millions": map[string]interface{}{"type": "number", "default": 0, "description": "Monthly Workers invocations in millions (10M included in $5 base)"},
-					"r2_storage_gb":          map[string]interface{}{"type": "number", "default": 0, "description": "R2 stored volume in GB (10GB free)"},
-					"r2_class_a_millions":   map[string]interface{}{"type": "number", "default": 0, "description": "R2 Class A operations (PUT, LIST) in millions (1M free)"},
-					"r2_class_b_millions":   map[string]interface{}{"type": "number", "default": 0, "description": "R2 Class B operations (GET) in millions (10M free)"},
-				},
-			},
-		},
-		{
 			Name:        "calculate_aws",
-			Description: "Calculate costs for Amazon Web Services (Amazon EC2, EBS gp3 SSD, and Internet Egress in Seoul ap-northeast-2).",
+			Description: "Calculate costs for Amazon Web Services (Amazon EC2, EBS gp3 SSD, S3, and Internet Egress in Seoul ap-northeast-2).",
 			InputSchema: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"instance_type": map[string]interface{}{"type": "string", "default": "t4g.medium", "description": "t4g.small, t4g.medium (Graviton2), t3.medium (x86), m6i.xlarge"},
+					"instance_type": map[string]interface{}{"type": "string", "default": "t4g.medium", "description": "t4g.small, t4g.medium (Graviton2), t3.medium (x86), m6i.xlarge, g4dn.xlarge"},
 					"count":         map[string]interface{}{"type": "number", "default": 1, "description": "Number of instances"},
 					"hours":         map[string]interface{}{"type": "number", "default": 730, "description": "Hours per month"},
 					"ebs_gb":        map[string]interface{}{"type": "number", "default": 50, "description": "EBS gp3 SSD size in GB"},
@@ -217,7 +187,7 @@ func getToolDefinitions() []Tool {
 			InputSchema: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"vm_size":     map[string]interface{}{"type": "string", "default": "Standard_B2s", "description": "Standard_B2s (2vCPU,4GB), Standard_D4s_v5 (4vCPU,16GB)"},
+					"vm_size":     map[string]interface{}{"type": "string", "default": "Standard_B2s", "description": "Standard_B2s (2vCPU,4GB), Standard_D4s_v5 (4vCPU,16GB), Standard_NC4as_T4_v3"},
 					"count":       map[string]interface{}{"type": "number", "default": 1, "description": "Number of VMs"},
 					"hours":       map[string]interface{}{"type": "number", "default": 730, "description": "Hours per month"},
 					"disk_gb":     map[string]interface{}{"type": "number", "default": 50, "description": "Managed SSD size in GB"},
@@ -228,11 +198,11 @@ func getToolDefinitions() []Tool {
 		},
 		{
 			Name:        "calculate_gcp",
-			Description: "Calculate costs for Google Cloud Platform (Compute Engine, Persistent Disk, Standard Egress in Seoul asia-northeast3).",
+			Description: "Calculate costs for Google Cloud Platform (Compute Engine, Persistent Disk, Cloud Storage, Standard Egress in Seoul asia-northeast3).",
 			InputSchema: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"machine_type": map[string]interface{}{"type": "string", "default": "e2-standard-2", "description": "e2-micro, e2-standard-2 (2vCPU,8GB), e2-standard-4"},
+					"machine_type": map[string]interface{}{"type": "string", "default": "e2-standard-2", "description": "e2-micro, e2-standard-2 (2vCPU,8GB), e2-standard-4, g2-standard-4"},
 					"count":        map[string]interface{}{"type": "number", "default": 1, "description": "Number of instances"},
 					"hours":        map[string]interface{}{"type": "number", "default": 730, "description": "Hours per month"},
 					"disk_gb":      map[string]interface{}{"type": "number", "default": 50, "description": "pd-balanced SSD size in GB"},
@@ -243,11 +213,11 @@ func getToolDefinitions() []Tool {
 		},
 		{
 			Name:        "list_catalog_products",
-			Description: "List all supported cloud pricing catalog products across all providers or filter by provider.",
+			Description: "List all supported Big 3 cloud pricing catalog products across all providers or filter by provider.",
 			InputSchema: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"provider": map[string]interface{}{"type": "string", "description": "ncp, cloudflare, aws, azure, gcp (optional)"},
+					"provider": map[string]interface{}{"type": "string", "description": "aws, azure, gcp (optional)"},
 				},
 			},
 		},
@@ -294,25 +264,7 @@ func executeTool(name string, args map[string]interface{}) (interface{}, error) 
 			OutboundGB:    getFloat("outbound_gb", 100),
 			IsSpot:        getBool("is_spot", false),
 		}
-		return calculator.CompareAllClouds(req)
-
-	case "calculate_ncp":
-		return calculator.CalculateNCP(
-			getString("server_type", "s2-g2"),
-			int(getFloat("count", 1)),
-			getFloat("hours", 730),
-			getFloat("storage_gb", 50),
-			getString("storage_type", "ssd"),
-			getFloat("outbound_gb", 0),
-		)
-
-	case "calculate_cloudflare":
-		return calculator.CalculateCloudflare(
-			getFloat("workers_reqs_millions", 0),
-			getFloat("r2_storage_gb", 0),
-			getFloat("r2_class_a_millions", 0),
-			getFloat("r2_class_b_millions", 0),
-		)
+		return calculator.CompareBig3(req)
 
 	case "calculate_aws":
 		return calculator.CalculateAWS(
