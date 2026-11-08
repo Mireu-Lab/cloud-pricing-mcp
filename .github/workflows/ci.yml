@@ -1,0 +1,44 @@
+name: Go Build & Test CI
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  test-and-lint:
+    name: Build, Test & Verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          check-latest: true
+
+      - name: Verify Go Formatting
+        run: |
+          if [ -n "$(gofmt -l .)" ]; then
+            echo "Go code is not formatted according to gofmt:"
+            gofmt -d .
+            exit 1
+          fi
+
+      - name: Go Vet
+        run: go vet ./...
+
+      - name: Go Test
+        run: go test -v ./...
+
+      - name: Build MCP CLI Binary
+        run: |
+          go build -v -o bin/cloud-pricing-mcp ./cmd/cloud-pricing-mcp
+
+      - name: Test CLI Compare Output
+        run: ./bin/cloud-pricing-mcp compare -vcpu 4 -ram 16 -disk 100 || true
