@@ -1,14 +1,12 @@
 package models
 
-// Provider represents supported cloud providers.
+// Provider represents supported cloud providers (Big 3: AWS, Azure, GCP).
 type Provider string
 
 const (
-	ProviderNCP        Provider = "ncp"
-	ProviderCloudflare Provider = "cloudflare"
-	ProviderAWS        Provider = "aws"
-	ProviderAzure      Provider = "azure"
-	ProviderGCP        Provider = "gcp"
+	ProviderAWS   Provider = "aws"
+	ProviderAzure Provider = "azure"
+	ProviderGCP   Provider = "gcp"
 )
 
 // Currency represents currency code.
@@ -38,25 +36,25 @@ type PriceItem struct {
 
 // CostCalculationResult represents the calculation output.
 type CostCalculationResult struct {
-	Provider            Provider          `json:"provider"`
-	Service             string            `json:"service"`
-	Region              string            `json:"region"`
-	Period              string            `json:"period"`
-	TotalCostUSD        float64           `json:"total_cost_usd"`
-	TotalCostKRW        float64           `json:"total_cost_krw"`
-	ExchangeRate        float64           `json:"exchange_rate_usd_krw"`
+	Provider            Provider              `json:"provider"`
+	Service             string                `json:"service"`
+	Region              string                `json:"region"`
+	Period              string                `json:"period"`
+	TotalCostUSD        float64               `json:"total_cost_usd"`
+	TotalCostKRW        float64               `json:"total_cost_krw"`
+	ExchangeRate        float64               `json:"exchange_rate_usd_krw"`
 	Breakdown           map[string]CostDetail `json:"breakdown"`
-	CostOptimizationTip string            `json:"cost_optimization_tip,omitempty"`
+	CostOptimizationTip string                `json:"cost_optimization_tip,omitempty"`
 }
 
 // CostDetail breakdown item.
 type CostDetail struct {
-	Units       float64 `json:"units"`
-	UnitName    string  `json:"unit_name"`
-	UnitPrice   float64 `json:"unit_price"`
+	Units       float64  `json:"units"`
+	UnitName    string   `json:"unit_name"`
+	UnitPrice   float64  `json:"unit_price"`
 	Currency    Currency `json:"currency"`
-	SubtotalUSD float64 `json:"subtotal_usd"`
-	SubtotalKRW float64 `json:"subtotal_krw"`
+	SubtotalUSD float64  `json:"subtotal_usd"`
+	SubtotalKRW float64  `json:"subtotal_krw"`
 }
 
 // CompareRequest represents cross-cloud comparison request.

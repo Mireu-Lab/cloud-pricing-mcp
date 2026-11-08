@@ -9,166 +9,6 @@ import (
 	"github.com/Mireu-Lab/cloud-pricing-mcp/internal/models"
 )
 
-// CalculateNCP calculates estimated cost for Naver Cloud Platform.
-func CalculateNCP(serverType string, count int, hours float64, storageGB float64, storageType string, outboundGB float64) (*models.CostCalculationResult, error) {
-	if count <= 0 {
-		count = 1
-	}
-	if hours <= 0 {
-		hours = 730
-	}
-	if storageType == "" {
-		storageType = "ssd"
-	}
-
-	exchangeRate := catalog.GetExchangeRate()
-	result := &models.CostCalculationResult{
-		Provider:     models.ProviderNCP,
-		Service:      "Server & Storage",
-		Region:       "KR (Korea)",
-		Period:       fmt.Sprintf("%.0f hours (~1 month)", hours),
-		ExchangeRate: exchangeRate,
-		Breakdown:    make(map[string]models.CostDetail),
-	}
-
-	// 1. Compute
-	serverRate := 92.0 // default s2-g2 (2vCPU, 4GB)
-	serverName := "Standard s2-g2 (2vCPU, 4GB)"
-	lowerType := strings.ToLower(serverType)
-	switch {
-	case strings.Contains(lowerType, "s4") || strings.Contains(lowerType, "4vcpu-8gb"):
-		serverRate = 184.0
-		serverName = "Standard s4-g2 (4vCPU, 8GB)"
-	case strings.Contains(lowerType, "c4") || strings.Contains(lowerType, "high-cpu"):
-		serverRate = 152.0
-		serverName = "High CPU c4-g2 (4vCPU, 4GB)"
-	case strings.Contains(lowerType, "m4") || strings.Contains(lowerType, "high-mem"):
-		serverRate = 248.0
-		serverName = "High Memory m4-g2 (4vCPU, 16GB)"
-	}
-
-	computeKRW := serverRate * hours * float64(count)
-	result.Breakdown["compute"] = models.CostDetail{
-		Units:       hours * float64(count),
-		UnitName:    fmt.Sprintf("%s x %d (Server-Hours)", serverName, count),
-		UnitPrice:   serverRate,
-		Currency:    models.CurrencyKRW,
-		SubtotalKRW: computeKRW,
-		SubtotalUSD: computeKRW / exchangeRate,
-	}
-
-	// 2. Storage
-	storageRate := 150.0 // SSD 150 KRW/GB-month
-	if strings.ToLower(storageType) == "hdd" {
-		storageRate = 80.0
-	}
-	storageKRW := storageRate * storageGB * float64(count) * (hours / 730.0)
-	result.Breakdown["storage"] = models.CostDetail{
-		Units:       storageGB * float64(count),
-		UnitName:    fmt.Sprintf("Block Storage (%s, GB-Month)", strings.ToUpper(storageType)),
-		UnitPrice:   storageRate,
-		Currency:    models.CurrencyKRW,
-		SubtotalKRW: storageKRW,
-		SubtotalUSD: storageKRW / exchangeRate,
-	}
-
-	// 3. Network Outbound
-	netKRW := 0.0
-	billableGB := math.Max(0, outboundGB-1024.0) // 1TB free allowance for servers
-	if billableGB > 0 {
-		netKRW = billableGB * 100.0
-	}
-	result.Breakdown["network"] = models.CostDetail{
-		Units:       outboundGB,
-		UnitName:    "Outbound Internet Traffic (GB, 1TB free allowance)",
-		UnitPrice:   100.0,
-		Currency:    models.CurrencyKRW,
-		SubtotalKRW: netKRW,
-		SubtotalUSD: netKRW / exchangeRate,
-	}
-
-	totalKRW := computeKRW + storageKRW + netKRW
-	result.TotalCostKRW = math.Round(totalKRW)
-	result.TotalCostUSD = math.Round((totalKRW/exchangeRate)*100) / 100
-	result.CostOptimizationTip = "💡 Tip: 1년 약정 시 10%, 2년 약정 시 20% 추가 할인을 적용할 수 있으며, 개발 환경은 미사용 시 서버 정지로 컴퓨팅 비용을 100% 절감할 수 있습니다."
-
-	return result, nil
-}
-
-// CalculateCloudflare calculates estimated cost for Cloudflare.
-func CalculateCloudflare(workersReqsMillions float64, r2StorageGB float64, r2ClassAMillions float64, r2ClassBMillions float64) (*models.CostCalculationResult, error) {
-	exchangeRate := catalog.GetExchangeRate()
-	result := &models.CostCalculationResult{
-		Provider:     models.ProviderCloudflare,
-		Service:      "Workers & R2 Storage",
-		Region:       "Global Edge (Anycast 300+ cities)",
-		Period:       "Monthly Usage",
-		ExchangeRate: exchangeRate,
-		Breakdown:    make(map[string]models.CostDetail),
-	}
-
-	// 1. Workers
-	workersUSD := 0.0
-	if workersReqsMillions > 0 {
-		workersUSD = 5.0 // Base paid plan (includes 10M requests)
-		if workersReqsMillions > 10.0 {
-			workersUSD += (workersReqsMillions - 10.0) * 0.30
-		}
-	}
-	result.Breakdown["workers"] = models.CostDetail{
-		Units:       workersReqsMillions,
-		UnitName:    "Workers Requests (Millions, Base 10M incl.)",
-		UnitPrice:   0.30,
-		Currency:    models.CurrencyUSD,
-		SubtotalUSD: workersUSD,
-		SubtotalKRW: workersUSD * exchangeRate,
-	}
-
-	// 2. R2 Storage (10GB free)
-	billableR2GB := math.Max(0, r2StorageGB-10.0)
-	r2StorageUSD := billableR2GB * 0.015
-	result.Breakdown["r2_storage"] = models.CostDetail{
-		Units:       r2StorageGB,
-		UnitName:    "R2 Standard Storage (GB-Month, 10GB free)",
-		UnitPrice:   0.015,
-		Currency:    models.CurrencyUSD,
-		SubtotalUSD: r2StorageUSD,
-		SubtotalKRW: r2StorageUSD * exchangeRate,
-	}
-
-	// 3. R2 Operations (1M Class A free, 10M Class B free)
-	billableClassA := math.Max(0, r2ClassAMillions-1.0)
-	opsAUSD := billableClassA * 4.50
-	billableClassB := math.Max(0, r2ClassBMillions-10.0)
-	opsBUSD := billableClassB * 0.36
-	opsUSD := opsAUSD + opsBUSD
-	result.Breakdown["r2_operations"] = models.CostDetail{
-		Units:       r2ClassAMillions + r2ClassBMillions,
-		UnitName:    "R2 Class A/B Operations (Millions, with free tiers)",
-		UnitPrice:   4.50,
-		Currency:    models.CurrencyUSD,
-		SubtotalUSD: opsUSD,
-		SubtotalKRW: opsUSD * exchangeRate,
-	}
-
-	// 4. Egress (Always free)
-	result.Breakdown["egress"] = models.CostDetail{
-		Units:       0,
-		UnitName:    "Unlimited Internet Egress (Zero bandwidth egress fee)",
-		UnitPrice:   0.0,
-		Currency:    models.CurrencyUSD,
-		SubtotalUSD: 0.0,
-		SubtotalKRW: 0.0,
-	}
-
-	totalUSD := workersUSD + r2StorageUSD + opsUSD
-	result.TotalCostUSD = math.Round(totalUSD*100) / 100
-	result.TotalCostKRW = math.Round(totalUSD * exchangeRate)
-	result.CostOptimizationTip = "💡 Tip: Cloudflare R2는 AWS S3 대비 아웃바운드(Egress) 요금이 $0(완전 무료)이므로 비디오/데이터셋/대용량 트래픽 호스팅 시 최대 90% 이상 비용을 절약합니다."
-
-	return result, nil
-}
-
 // CalculateAWS calculates estimated cost for Amazon Web Services.
 func CalculateAWS(instanceType string, count int, hours float64, ebsGB float64, outboundGB float64, isSpot bool) (*models.CostCalculationResult, error) {
 	if count <= 0 {
@@ -201,6 +41,9 @@ func CalculateAWS(instanceType string, count int, hours float64, ebsGB float64, 
 	case strings.Contains(lower, "m6i.xlarge") || strings.Contains(lower, "4vcpu-16gb"):
 		hourlyRate = 0.2304
 		instName = "m6i.xlarge (4vCPU, 16GB)"
+	case strings.Contains(lower, "g4dn") || strings.Contains(lower, "gpu"):
+		hourlyRate = 0.710
+		instName = "g4dn.xlarge (4vCPU, 16GB, 1x T4)"
 	}
 
 	if isSpot {
@@ -244,7 +87,7 @@ func CalculateAWS(instanceType string, count int, hours float64, ebsGB float64, 
 	totalUSD := computeUSD + ebsUSD + netUSD
 	result.TotalCostUSD = math.Round(totalUSD*100) / 100
 	result.TotalCostKRW = math.Round(totalUSD * exchangeRate)
-	result.CostOptimizationTip = "💡 Tip: x86 대비 AWS Graviton(ARM) 인스턴스는 동일 성능 기준 최대 20% 저렴하며, 배치성 작업은 Spot 사용 시 최대 70% 비용을 절감할 수 있습니다."
+	result.CostOptimizationTip = "💡 Tip: AWS Graviton(ARM) 인스턴스는 동일 성능 대비 최대 20% 저렴하며, 배치성 작업은 Spot 사용 시 최대 65~70% 비용을 절감할 수 있습니다."
 
 	return result, nil
 }
@@ -275,6 +118,9 @@ func CalculateAzure(vmSize string, count int, hours float64, diskGB float64, out
 	case strings.Contains(lower, "d4s") || strings.Contains(lower, "4vcpu-16gb"):
 		hourlyRate = 0.216
 		vmName = "Standard_D4s_v5 (4vCPU, 16GB)"
+	case strings.Contains(lower, "nc4as") || strings.Contains(lower, "gpu"):
+		hourlyRate = 0.628
+		vmName = "Standard_NC4as_T4_v3 (4vCPU, 28GB, 1x T4)"
 	}
 
 	if isSpot {
@@ -318,7 +164,7 @@ func CalculateAzure(vmSize string, count int, hours float64, diskGB float64, out
 	totalUSD := computeUSD + diskUSD + netUSD
 	result.TotalCostUSD = math.Round(totalUSD*100) / 100
 	result.TotalCostKRW = math.Round(totalUSD * exchangeRate)
-	result.CostOptimizationTip = "💡 Tip: Azure Hybrid Benefit(AHB) 보유 시 Windows/SQL 라이선스 비용을 최대 40% 절감할 수 있으며 AKS 마스터 노드는 기본 무료입니다."
+	result.CostOptimizationTip = "💡 Tip: Azure Spot 인스턴스는 최대 80-90% 저렴하며 AKS 마스터 노드는 기본 무료입니다."
 
 	return result, nil
 }
@@ -352,6 +198,9 @@ func CalculateGCP(machineType string, count int, hours float64, diskGB float64, 
 	case strings.Contains(lower, "e2-standard-4") || strings.Contains(lower, "4vcpu-16gb"):
 		hourlyRate = 0.1608
 		machName = "e2-standard-4 (4vCPU, 16GB)"
+	case strings.Contains(lower, "g2-standard-4") || strings.Contains(lower, "gpu"):
+		hourlyRate = 0.758
+		machName = "g2-standard-4 (4vCPU, 16GB, 1x L4)"
 	}
 
 	if isSpot {
@@ -394,13 +243,13 @@ func CalculateGCP(machineType string, count int, hours float64, diskGB float64, 
 	totalUSD := computeUSD + diskUSD + netUSD
 	result.TotalCostUSD = math.Round(totalUSD*100) / 100
 	result.TotalCostKRW = math.Round(totalUSD * exchangeRate)
-	result.CostOptimizationTip = "💡 Tip: Compute Engine 장기 약정(CUD 1년/3년) 시 37~55% 영구 할인되며, Cloud Run 등 서버리스 아키텍처 도입 시 유휴 비용을 0원으로 축소할 수 있습니다."
+	result.CostOptimizationTip = "💡 Tip: GCS Archive 스토리지는 지연시간 0초(밀리초 즉시 인출)를 지원하며, Compute Engine CUD(1~3년) 시 최대 55% 할인됩니다."
 
 	return result, nil
 }
 
-// CompareAllClouds executes unified cross-cloud FinOps comparison.
-func CompareAllClouds(req models.CompareRequest) (*models.CompareResponse, error) {
+// CompareBig3 executes cross-cloud comparison between AWS, Azure, and GCP.
+func CompareBig3(req models.CompareRequest) (*models.CompareResponse, error) {
 	if req.HoursPerMonth <= 0 {
 		req.HoursPerMonth = 730
 	}
@@ -408,20 +257,7 @@ func CompareAllClouds(req models.CompareRequest) (*models.CompareResponse, error
 		req.StorageGB = 50
 	}
 
-	// 1. NCP
-	ncpRes, _ := CalculateNCP("s2-g2", 1, req.HoursPerMonth, req.StorageGB, req.StorageType, req.OutboundGB)
-	ncpQuote := models.ProviderQuote{
-		Provider:     models.ProviderNCP,
-		InstanceName: "NCP Standard s2-g2 (2vCPU, 4GB)",
-		ComputeCost:  ncpRes.Breakdown["compute"].SubtotalKRW,
-		StorageCost:  ncpRes.Breakdown["storage"].SubtotalKRW,
-		NetworkCost:  ncpRes.Breakdown["network"].SubtotalKRW,
-		TotalCostKRW: ncpRes.TotalCostKRW,
-		TotalCostUSD: ncpRes.TotalCostUSD,
-		Notes:        "KR 리전 기본 원화 과금, 1TB 아웃바운드 무료 기본 제공",
-	}
-
-	// 2. AWS
+	// 1. AWS
 	awsRes, _ := CalculateAWS("t4g.medium", 1, req.HoursPerMonth, req.StorageGB, req.OutboundGB, req.IsSpot)
 	awsQuote := models.ProviderQuote{
 		Provider:     models.ProviderAWS,
@@ -431,10 +267,10 @@ func CompareAllClouds(req models.CompareRequest) (*models.CompareResponse, error
 		NetworkCost:  awsRes.Breakdown["network"].SubtotalKRW,
 		TotalCostKRW: awsRes.TotalCostKRW,
 		TotalCostUSD: awsRes.TotalCostUSD,
-		Notes:        "Seoul 리전 Graviton2 인스턴스 (최고 전력/비용 효율)",
+		Notes:        "Seoul region Graviton2 ARM instance (highest energy/cost efficiency)",
 	}
 
-	// 3. Azure
+	// 2. Azure
 	azureRes, _ := CalculateAzure("Standard_B2s", 1, req.HoursPerMonth, req.StorageGB, req.OutboundGB, req.IsSpot)
 	azureQuote := models.ProviderQuote{
 		Provider:     models.ProviderAzure,
@@ -444,10 +280,10 @@ func CompareAllClouds(req models.CompareRequest) (*models.CompareResponse, error
 		NetworkCost:  azureRes.Breakdown["network"].SubtotalKRW,
 		TotalCostKRW: azureRes.TotalCostKRW,
 		TotalCostUSD: azureRes.TotalCostUSD,
-		Notes:        "Korea Central 리전 Burstable VM",
+		Notes:        "Korea Central region burstable VM",
 	}
 
-	// 4. GCP
+	// 3. GCP
 	gcpRes, _ := CalculateGCP("e2-standard-2", 1, req.HoursPerMonth, req.StorageGB, req.OutboundGB, req.IsSpot)
 	gcpQuote := models.ProviderQuote{
 		Provider:     models.ProviderGCP,
@@ -457,12 +293,12 @@ func CompareAllClouds(req models.CompareRequest) (*models.CompareResponse, error
 		NetworkCost:  gcpRes.Breakdown["network"].SubtotalKRW,
 		TotalCostKRW: gcpRes.TotalCostKRW,
 		TotalCostUSD: gcpRes.TotalCostUSD,
-		Notes:        "Seoul 리전 균형 잡힌 범용 VM (8GB RAM 탑재)",
+		Notes:        "Seoul region balanced general VM with 8GB RAM",
 	}
 
-	quotes := []models.ProviderQuote{ncpQuote, awsQuote, azureQuote, gcpQuote}
+	quotes := []models.ProviderQuote{awsQuote, azureQuote, gcpQuote}
 
-	// Find best option (lowest TotalCostKRW)
+	// Find best option
 	best := quotes[0]
 	for _, q := range quotes[1:] {
 		if q.TotalCostKRW < best.TotalCostKRW {
@@ -470,7 +306,7 @@ func CompareAllClouds(req models.CompareRequest) (*models.CompareResponse, error
 		}
 	}
 
-	advice := fmt.Sprintf("🏆 가장 비용 효율적인 옵션은 [%s] (%s, 월 약 %.0f원 / $%.2f) 입니다. 장기 안정 운영 시 약정(1-3년)을 추가 결합하면 추가 20~50%% 절감이 가능합니다.",
+	advice := fmt.Sprintf("🏆 Lowest cost option is [%s] (%s, ~%.0f KRW / $%.2f monthly). Commitments (1-3 yrs) offer additional 20-50%% savings.",
 		strings.ToUpper(string(best.Provider)), best.InstanceName, best.TotalCostKRW, best.TotalCostUSD)
 
 	return &models.CompareResponse{
